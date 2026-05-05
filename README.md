@@ -292,11 +292,11 @@ const y = sampleLUT(LUT, t);
 
 ```mermaid
 flowchart TD
-    LEP[lite-ease-params<br/><sub>tunable Back / Elastic / Bounce</sub>]:::tunable
-    LE[lite-ease<br/><sub>30 fixed Penner curves</sub>]:::fixed
-    LCB[lite-cubic-bezier<br/><sub>CSS-compatible bezier runtime</sub>]:::bezier
-    LL[lite-ease-lut<br/><sub>bake any (t)=>y to a LUT</sub>]:::lut
-    LK[lite-keyframe<br/><sub>multi-segment timelines</sub>]:::timeline
+    LEP["lite-ease-params<br/><sub>tunable Back / Elastic / Bounce</sub>"]:::tunable
+    LE["lite-ease<br/><sub>30 fixed Penner curves</sub>"]:::fixed
+    LCB["lite-cubic-bezier<br/><sub>CSS-compatible bezier runtime</sub>"]:::bezier
+    LL["lite-ease-lut<br/><sub>bake any (t)=>y to a LUT</sub>"]:::lut
+    LK["lite-keyframe<br/><sub>multi-segment timelines</sub>"]:::timeline
 
     LEP --> LL
     LE --> LL
