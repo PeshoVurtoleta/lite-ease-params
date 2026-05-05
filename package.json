@@ -1,0 +1,56 @@
+{
+  "name": "@zakkster/lite-ease-params",
+  "version": "1.0.0",
+  "description": "Zero-GC tunable parametric easing factories (Back, Elastic, Bounce). Uses codegen and trigonometry hoisting for allocation-free hot paths.",
+  "type": "module",
+  "main": "EaseParams.js",
+  "module": "EaseParams.js",
+  "types": "EaseParams.d.ts",
+  "exports": {
+    ".": {
+      "types": "EaseParams.d.ts",
+      "import": "EaseParams.js",
+      "default": "EaseParams.js"
+    }
+  },
+  "files": [
+    "EaseParams.js",
+    "EaseParams.d.ts",
+    "README.md",
+    "llms.txt",
+    "LICENSE.txt"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "keywords": [
+    "easing",
+    "parametric",
+    "codegen",
+    "zero-gc",
+    "animation",
+    "elastic",
+    "bounce",
+    "back",
+    "performance",
+    "game-engine"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  },
+  "license": "MIT",
+  "author": "Zahary Shinikchiev <shinikchiev@yahoo.com>",
+  "homepage": "https://github.com/PeshoVurtoleta/lite-ease-params#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PeshoVurtoleta/lite-ease-params.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PeshoVurtoleta/lite-ease-params/issues",
+    "email": "shinikchiev@yahoo.com"
+  },
+  "sideEffects": false
+}

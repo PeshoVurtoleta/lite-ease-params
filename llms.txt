@@ -1,0 +1,233 @@
+@zakkster/lite-ease-params
+==========================
+
+Tunable parametric easing factories for the Lite ecosystem.
+Codegen pattern: 1 allocation at factory time, 0 allocations in the hot path.
+Zero dependencies, ES module, sideEffects: false, < 2 KB minified.
+
+
+SHAPE
+-----
+
+Every factory returns an EasingFunction:
+
+    EasingFunction = (t: number) => number     // t in [0, 1]
+
+Output is in [0, 1] for Bounce. Back and Elastic can overshoot above 1 and
+below 0 by design.
+
+
+EXPORTS
+-------
+
+Back family (overshoot parameter, default 1.70158):
+    createBackIn(overshoot?)      => (t) => y
+    createBackOut(overshoot?)     => (t) => y
+    createBackInOut(overshoot?)   => (t) => y
+
+Elastic family (amplitude, period parameters; defaults 1, 0.3):
+    createElasticIn(amp?, per?)      => (t) => y
+    createElasticOut(amp?, per?)     => (t) => y
+    createElasticInOut(amp?, per?)   => (t) => y
+
+Bounce family (bounciness parameter, default 0.25 = Penner canonical):
+    createBounceIn(bounciness?)      => (t) => y
+    createBounceOut(bounciness?)     => (t) => y
+    createBounceInOut(bounciness?)   => (t) => y
+
+Type:
+    EasingFunction = (t: number) => number
+
+
+PARAMETER SEMANTICS
+-------------------
+
+Back.overshoot
+    Penner's "back" constant. Default 1.70158 (canonical).
+    Higher = deeper dip (BackIn) / bigger overshoot (BackOut).
+    InOut variant internally multiplies by 1.525 per Penner.
+
+Elastic.amplitude
+    Peak overshoot magnitude. Internally clamped to >= 1.
+    Reason: formula uses asin(1 / amplitude); a < 1 would be NaN.
+    Default 1 reproduces Penner.
+
+Elastic.period
+    Oscillation period in t-space. Smaller = more / faster oscillations.
+    Non-positive (<= 0) values fall back to 0.3.
+    Default 0.3 reproduces Penner.
+
+Bounce.bounciness
+    Fraction of vertical energy retained per bounce. (0, 1).
+    Internally clamped to [0.01, 0.99].
+    Default 0.25 reproduces Penner exactly via a cached closure.
+    Higher = more, smaller bounces. Lower = long drop, tiny final bounces.
+
+
+HOT-PATH CONTRACT
+-----------------
+
+Init (factory call):
+    Back:    1-2 multiplies + adds (captures overshoot, s1, possibly s).
+    Elastic: 1 asin, 2 divisions (captures a, p, s, freq).
+    Bounce default (0.25): 0 — returns module-level cached closure.
+    Bounce parametric: 1 sqrt, ~4 mults, 5 adds (captures p1, p2, p3, n, b).
+
+Per call:
+    Back:     4 multiplies, 1 add.
+    Elastic:  pow + sin + 2-4 multiplies + 1-2 adds + 0-1 branches.
+    Bounce:   1-3 multiplies + 1 add + 1 branch (4 segment dispatch).
+    Allocations: 0 in all cases.
+
+Reference equality of cached default Bounce:
+    createBounceOut() === createBounceOut() === createBounceOut(0.25)
+
+
+MATH (BOUNCE PARAMETRIC)
+------------------------
+
+Goal: 4-segment parabolic curve, all peaks = 1, valleys = 1 - b^k.
+
+Per-bounce velocity ratio: q = sqrt(b)   (height ratio = q^2 = b)
+Half-width of bounce-k arc: h_k = q^k * p1
+Gravity: n = 1 / p1^2   (so n * p1^2 = 1, peak of seg 1 reaches 1)
+
+Constraint: segment widths sum to 1.
+    p1 + 2q*p1 + 2q^2*p1 + 2q^3*p1 = 1
+    p1 = 1 / (1 + 2q*(1 + q + b))    (using q^2 = b, q^3 = qb)
+
+Breakpoints:
+    p1 = 1 / (1 + 2q*(1 + q + b))
+    p2 = p1 * (1 + 2q)             // p1 + 2q*p1
+    p3 = p2 + 2b*p1                // p2 + 2q^2*p1
+    (segment 4 implicitly ends at 1; half-width = q^3*p1 = b*sqrt(b)*p1)
+
+Segment values (with tm = t - segment_center):
+    seg 1 (t < p1):       n*t*t                       (peak 1 at t=p1)
+    seg 2 (p1 ≤ t < p2):  n*tm*tm + (1 - b)           (valley 1-b)
+    seg 3 (p2 ≤ t < p3):  n*tm*tm + (1 - b^2)         (valley 1-b^2)
+    seg 4 (p3 ≤ t < 1):   n*tm*tm + (1 - b^3)         (valley 1-b^3)
+
+At b = 0.25: q = 0.5, formula yields p1 = 1/2.75, matches Penner bit-exactly.
+
+
+MATH (ELASTIC)
+--------------
+
+Phase shift: s = asin(1/a) * (period / (2π))     (hoisted to init)
+Frequency:   freq = 2π / period                  (hoisted to init)
+
+Out: a * pow(2, -10*t) * sin((t - s) * freq) + 1
+In : -(a * pow(2, 10*(t-1)) * sin(((t-1) - s) * freq))
+InOut: piecewise In on [0, 0.5], Out on (0.5, 1], scaled and offset.
+
+a is clamped to >= 1 to keep asin(1/a) finite.
+Endpoint guards: if (t === 0) return 0; if (t === 1) return 1.
+
+
+MATH (BACK)
+-----------
+
+s1 = overshoot + 1
+
+In:    t * t * (s1 * t - overshoot)
+Out:   tm = t - 1; 1 + tm*tm*(s1*tm + overshoot)
+InOut: s = overshoot * 1.525, s1 = s + 1
+       t < 0.5: 0.5 * (4*t*t*((s1*2*t) - s))
+       else:    0.5 * (tm*tm*(s1*tm + s) + 2)   where tm = 2t - 2
+
+
+GUARANTEES
+----------
+
+Endpoints:
+    Bounce: f(0) === 0, f(1) === 1 exactly (explicit boundary clamps).
+    Back/Elastic: f(0) ≈ 0, f(1) ≈ 1 within ~2e-16 (float artifacts from
+        non-exactly-representable literals like 1.70158).
+
+InOut variants:
+    f(0.5) ≈ 0.5 (within float epsilon).
+    Point-symmetric around (0.5, 0.5): f(t) + f(1 - t) ≈ 1.
+
+Bounce default:
+    Bit-exact match to Penner across [0, 1] (verified at 1000-sample
+    resolution: max difference = 0).
+
+
+COMMON PATTERNS
+---------------
+
+1. Build at init, call in hot path.
+   Build curves once at component/scene init. Don't call factories per frame.
+
+       // GOOD
+       const punch = createBackOut(2.5);
+       function tick(t) { return punch(t); }
+
+       // BAD — allocates a new closure every frame
+       function tick(t) { return createBackOut(2.5)(t); }
+
+2. ECS / SoA flyweight.
+   One factory, many entities. Each entity stores only t.
+
+       const profile = createBackOut(2.0);
+       for (let i = 0; i < N; i++) {
+           const t = entityT[i];
+           const y = profile(t);   // shared, zero-alloc
+       }
+
+3. Bake to LUT for absolute hot-path purity.
+   Pair with @zakkster/lite-ease-lut.
+
+       import { bakeLUT, sampleLUT } from '@zakkster/lite-ease-lut';
+       const LUT = bakeLUT(createElasticOut(1.3, 0.4), 256);
+       // hot path: one array index instead of pow + sin
+
+4. Compose with @zakkster/lite-ease.
+   Both speak (t) => number. Mix tuned and static curves freely.
+
+5. Use cached default for hot-path reference equality.
+       const a = createBounceOut();
+       const b = createBounceOut();   // a === b
+
+
+PITFALLS
+--------
+
+- Calling the factory inside the hot path defeats the entire pattern.
+  The factory allocates one closure; do it at init.
+
+- Elastic.amplitude < 1 is silently clamped to 1.
+  If you need "smaller" elastic, reduce period or use a different curve.
+
+- Elastic.period <= 0 silently falls back to 0.3.
+
+- Bounce.bounciness is clamped to [0.01, 0.99]. Out-of-range values do not
+  throw; they map to the closest valid value.
+
+- Floating-point endpoints on Back/Elastic: f(0) and f(1) may differ from
+  exact 0 / 1 by ~2e-16. Use toBeCloseTo in tests, not strict equality.
+  Bounce has explicit boundary clamps and is exact.
+
+
+VERIFICATION
+------------
+
+The package ships with 79 tests covering:
+- f(0) ≈ 0 and f(1) ≈ 1 for every factory.
+- f(0.5) ≈ 0.5 for InOut variants.
+- Point symmetry of InOut variants.
+- Time-mirror identity: In(t) ≡ 1 - Out(1 - t).
+- Default Bounce bit-exact match to Penner across [0, 1].
+- Bounce parametric: continuity, peak = 1, range ⊂ [0, 1] across 9
+  bounciness values.
+- asin-NaN protection (amplitude < 1).
+- Period fallback (period <= 0).
+- Reference equality of the cached default Bounce closure.
+- Determinism: same input → same output across repeated calls.
+
+
+LICENSE
+-------
+
+MIT
